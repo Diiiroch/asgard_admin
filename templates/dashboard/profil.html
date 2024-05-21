@@ -1,0 +1,51 @@
+{% load bootstrap5 %}
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+<style>
+  .breadcrumb-item + .breadcrumb-item::before {
+      content: none;
+  }
+</style>
+<section style="background-color: #eee;">
+    <div class="container py-5">
+      <div class="row">
+        <div class="col">
+          <nav aria-label="breadcrumb" class="bg-light rounded-3 p-3 mb-4">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="{% url "Accueil" %}">Home</a></li>
+
+              <li class="breadcrumb-item"><a href="{% url "profil" %}">User</a></li>
+              {% if user.is_authenticated %}
+              <li class="breadcrumb-item ms-auto" ><a href="{% url "logout" %}">Logout</a></li>
+              {% endif %}
+              
+            </ol>
+
+          </nav>
+        </div>
+      </div>
+  
+      <div class="row">
+        <div class="col-lg-4">
+          <div class="card mb-4">
+            <div class="card-body text-center">
+              <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-chat/ava3.webp" alt="avatar"
+                class="rounded-circle img-fluid" style="width: 150px;">
+              {% if user.is_authenticated %}
+                  <h5 class="my-3"> Hello, {{ user }}!  </h5>
+
+                  <p class="text-muted mb-1"> Mail: {{ user.email }} </p>
+                  <p class="text-muted mb-1">  Tel: {{ user.account.tel }} </p>
+              {% endif %}
+              <p class="text-muted mb-4"></p>
+               <div class="d-flex justify-content-center mb-2">
+                {% comment %} <button type="button" class="btn btn-primary">Follow</button>
+                <button type="button" class="btn btn-outline-primary ms-1">Message</button> {% endcomment %}
+              </div> 
+            </div>
+          </div>
+          
+        </div>
+        
+    
+  </section>

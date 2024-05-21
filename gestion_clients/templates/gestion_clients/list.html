@@ -1,0 +1,6 @@
+<h2>Liste des clients</h2>
+<ul>
+    {% for client in clients_associated %}
+    <li>{{ client.nom_client }} - {{ client.domaine }}</li>
+    {% endfor %}
+</ul>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Récapitulatif des événements</title>
+    <!-- Lien vers Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <h1 class="mt-5 mb-4">Récapitulatif des congés enregistrés par {{ consultant }}</h1>
+        <ul class="list-group">
+            {% for event_type, summary in event_summary.items %}
+                <li class="list-group-item">Type  : {{ event_type }} | Du {{ summary.start }} au {{ summary.end }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <!-- Optionnel : Lien vers Bootstrap JavaScript si vous utilisez des composants interactifs -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script> -->
+</body>
+</html>

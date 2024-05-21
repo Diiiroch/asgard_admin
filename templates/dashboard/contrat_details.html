@@ -1,0 +1,82 @@
+{% load bootstrap5 %}
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+<style>
+  .breadcrumb-item + .breadcrumb-item::before {
+      content: none;
+  }
+</style>
+<section style="background-color: #eee;">
+    <div class="container py-5">
+      <div class="row">
+        <div class="col">
+          <nav aria-label="breadcrumb" class="bg-light rounded-3 p-3 mb-4">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="{% url "Accueil" %}">Home</a></li>
+
+              <li class="breadcrumb-item"><a href="{% url "profil" %}">User</a></li>
+              {% if user.is_authenticated %}
+              <li class="breadcrumb-item ms-auto" ><a href="{% url "logout" %}">Logout</a></li>
+              {% endif %}
+              
+            </ol>
+
+          </nav>
+        </div>
+      </div>
+  
+      <div class="row">
+
+        <div class="col-lg-8">
+          
+          <div class="card mb-4">
+            <div class="card-body">
+              <div class="row">
+
+                
+              </div>
+              <p class="mb-0">Détails de  {{ contrats }}</p>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3">
+                  <p class="mb-0">Titulaire : </p>
+                </div>
+                <div class="col-sm-9">
+                  
+                  <p class="mb-0"> {{ contrats.titulaire }}</p>
+                  
+                </div>
+
+              </div>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3">
+                  <p class="mb-0">Début/Fin</p>
+                </div>
+                <div class="col-sm-9">
+                  
+                  <p class="mb-0">{{ contrats.debut_contrat }} </p>
+                  <p class="mb-0">{{ contrats.fin_contrat }} </p>
+                  
+                </div>
+              </div>
+              <hr>
+              <div class="row">
+                <div class="col-sm-3">
+                  <p class="mb-0">Fichier : </p>
+                </div>
+                <div class="col-sm-9">
+                  
+                  <p class="mb-0"><a href="{{ contrats.fichier.url }}" download>{{ contrats.fichier.name }}</a></p>
+
+                  
+                </div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+    
+  </section>

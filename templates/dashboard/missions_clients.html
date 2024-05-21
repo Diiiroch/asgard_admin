@@ -1,0 +1,40 @@
+{% load bootstrap5 %}
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+<style>
+  .breadcrumb-item + .breadcrumb-item::before {
+      content: none;
+  }
+</style>
+<section style="background-color: #eee;">
+  <div class="container py-5">
+    <div class="row">
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb bg-light rounded-3 p-3 mb-4">
+            <li class="breadcrumb-item"><a href="{% url "Accueil" %}" class="text-decoration-none">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url "profil" %}" class="text-decoration-none">User</a></li>
+            {% if user.is_authenticated %}
+            <li class="breadcrumb-item ms-auto"><a href="{% url "logout" %}" class="text-decoration-none">Logout</a></li>
+            {% endif %}
+          </ol>
+        </nav>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-lg-4">
+        <div class="card mb-4">
+          <div class="card-body text-center">
+            <h5 class="card-title my-3">Historique des missions selon les clients de {{ consultant }}</h5>
+            {% for mission in missions %}
+              <p class="text-muted mb-1">{{ mission.intitule }} | Client concerné: {{ mission.client_concerne.nom_client }}</p>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-8">
+        <!-- Insérez du contenu supplémentaire ici si nécessaire -->
+      </div>
+    </div>
+  </div>
+</section>

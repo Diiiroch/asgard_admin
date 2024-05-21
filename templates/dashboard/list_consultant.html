@@ -1,0 +1,54 @@
+{% load bootstrap5 %}
+{% bootstrap_css %}
+{% bootstrap_javascript %}
+<style>
+  .breadcrumb-item + .breadcrumb-item::before {
+      content: none;
+  }
+</style>
+<section style="background-color: #eee;">
+    <div class="container py-5">
+      <div class="row">
+        <div class="col">
+          <nav aria-label="breadcrumb" class="bg-light rounded-3 p-3 mb-4">
+            <ol class="breadcrumb mb-0">
+              <li class="breadcrumb-item"><a href="{% url "Accueil" %}">Home</a></li>
+              <li class="breadcrumb-item"><a href="{% url "profil" %}">User</a></li>
+              {% if user.is_authenticated %}
+              <li class="breadcrumb-item ms-auto" ><a href="{% url "logout" %}">Logout</a></li>
+              {% endif %}           
+            </ol>
+          </nav>
+        </div>
+      </div> 
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="card mb-4">
+            <div class="card-body"> <!-- Ajout de la classe text-start -->
+              <h5 class="card-title mb-4">Consultants</h5>
+              <ul class="list-group list-group-flush"><!-- Pas besoin de text-end -->
+                {% for consultant in consultant %}
+                  <li class="list-group-item">
+                    <a href="{% url 'missions_clients' consultant.id   %}" class="text-decoration-none">  {{ consultant }}</a>
+                  </li> 
+                {% endfor %}
+              </ul>
+            </div> 
+          </div>
+          {% if user.is_authenticated %}
+          {% for group in user.groups.all %}
+          {% if group.name == 'RH' %}
+          <div class="mt-4">
+            <div class="btn-group" role="group" aria-label="Actions">
+              <a href="{% url 'ajouter_consultant' %}" class="btn btn-outline-info">Ajouter un consultant</a>
+              <a href="{% url 'modifier_consultant' %}" class="btn btn-outline-warning">Modifier un profil de consultant</a>
+              <a href="{% url 'modifier_consultant' %}" class="btn btn-outline-danger">Archiver un consultant</a>
+            </div>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </div>   
+  </section>
