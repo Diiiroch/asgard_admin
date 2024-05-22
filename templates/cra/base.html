@@ -8,6 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.9.0/fullcalendar.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@3.9.0/dist/locale-all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         .fc-event .fc-time {
             display: none;
@@ -33,6 +34,36 @@
         </div>
         {% block content %}{% endblock %}
     </div>
+    
+    <!-- Modal for updating events -->
+    <div class="modal fade" id="update-event-modal" tabindex="-1" role="dialog" aria-labelledby="updateEventModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateEventModalLabel">Mettre à jour l'événement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="update-event-form">
+                        <input type="hidden" id="event-id" name="event-id">
+                        <div class="mb-3">
+                            <label for="duration" class="form-label">Durée</label>
+                            <input type="text" class="form-control" id="duration" name="duration">
+                        </div>
+                        <div class="mb-3">
+                            <label for="codeprojet" class="form-label">Code Projet</label>
+                            <select class="form-control" id="codeprojet" name="codeprojet">
+                                {% for projet in projets %}
+                                <option value="{{ projet.id }}">{{ projet.intitule }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         $(document).ready(function () {
@@ -49,7 +80,31 @@
                 selectHelper: true,
                 editable: true,
                 eventLimit: true,
+                events: function (start, end, timezone, callback) {
+                    $.ajax({
+                        url: '/cra/all_events/',
+                        dataType: 'json',
+                        success: function (data) {
+                            data.forEach(function (event) {
+                                if (!moment.isMoment(event.start)) {
+                                    event.start = moment(event.start);
+                                }
+                                if (!moment.isMoment(event.end)) {
+                                    event.end = moment(event.end);
+                                }
+                            });
+                            callback(data);
+                        }
+                    });
+                },
+                eventRender: function (event, element) {
+                    const durationSpan = document.createElement('span');
+                    durationSpan.textContent = ` (${event.duration}, ${event.codeprojet})`;
+                    element.find('.fc-title').append(durationSpan);
+                },
                 eventClick: function(calEvent) {
+                    console.log("Clicked event:", calEvent);
+
                     var eventId = calEvent.id;
                     var duration = calEvent.duration;
                     var codeProjet = calEvent.codeprojet;
@@ -58,37 +113,34 @@
                     $('#duration').val(duration);
                     $('#codeprojet').val(codeProjet);
 
-                    $('#update-event-modal').modal('show');
-                },
-                events: function (start, end, timezone, callback) {
-                    $.ajax({
-                        url: '/cra/all_events/',
-                        dataType: 'json',
-                        success: function (data) {
-                            data.forEach(function (event) {
-                                event.start = moment(event.start).format();
-                                event.end = moment(event.end).format();
-                            });
-                            callback(data);
-                        }
-                    });
+                    console.log("Event data:", { eventId, duration, codeProjet });
+
+                    if (eventId && duration !== undefined && codeProjet) {
+                        $('#update-event-modal').modal('show');
+                    } else {
+                        console.error("Invalid event data:", { eventId, duration, codeProjet });
+                        alert("Données de l'événement invalides, veuillez réessayer.");
+                    }
                 },
                 select: function (start, end, allDay) {
                     var date = start.format('YYYY-MM-DD');
                     var maxDuration = 1 - (durationByDay[date] || 0);
 
-                    // Récupérer les événements existants pour la date sélectionnée
                     $.ajax({
                         url: '/cra/all_events/',
                         dataType: 'json',
                         success: function (data) {
-                            var existingEvents = data.filter(function (event) {
-                                if (moment.isMoment(event.start)) {
-                                    return event.start.format('YYYY-MM-DD') === date;
-                                } else {
-                                    console.error("La propriété 'start' de l'événement n'est pas un objet Moment.js :", event.start);
-                                    return false;
+                            data.forEach(function (event) {
+                                if (!moment.isMoment(event.start)) {
+                                    event.start = moment(event.start);
                                 }
+                                if (!moment.isMoment(event.end)) {
+                                    event.end = moment(event.end);
+                                }
+                            });
+
+                            var existingEvents = data.filter(function (event) {
+                                return event.start.format('YYYY-MM-DD') === date;
                             });
 
                             var totalExistingDuration = existingEvents.reduce(function (total, event) {
@@ -133,11 +185,6 @@
                             }
                         }
                     });
-                },
-                eventRender: function (event, element) {
-                    const durationSpan = document.createElement('span');
-                    durationSpan.textContent = ` (${event.codeprojet})`;
-                    element.find('.fc-title').append(durationSpan);
                 }
             });
 
@@ -145,25 +192,32 @@
                 event.preventDefault();
 
                 var formData = $(this).serialize();
+                console.log("Form data being sent:", formData);
 
                 $.ajax({
                     url: '/cra/update_event/',
                     type: 'POST',
                     data: formData,
                     success: function(response) {
+                        console.log("Server response:", response);
                         $('#calendar').fullCalendar('refetchEvents');
                         $('#update-event-modal').modal('hide');
                     },
                     error: function(xhr, status, error) {
                         alert("Erreur lors de la mise à jour de l'événement : " + error);
+                        console.error("Error details:", xhr, status, error);
                     }
                 });
             });
         });
 
         document.addEventListener("DOMContentLoaded", function () {
+            // Sélectionner le bouton de génération de PDF
             var events_btn = document.getElementById('events-btn');
+        
+            // Ajouter un écouteur d'événements pour détecter le clic sur le bouton
             events_btn.addEventListener('click', function () {
+                // Générer le PDF à partir du contenu de la page
                 redirect_events();
             });
         });

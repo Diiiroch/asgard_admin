@@ -13,7 +13,7 @@ from conge import views as conge_views
 urlpatterns = [
     path('',main_views.Accueil, name='Accueil'),
     path('admin/', admin.site.urls), 
-    path('cra/update_event/', cra_views.update_event, name='update_event'),  # Assurez-vous que cette ligne est présente
+
     path('logout_user/', main_views.logout_user, name='logout'),
     path('missions_clients/<int:consultant_id>/', consultant_view.missions_clients, name='missions_clients'),
     path('profil_user/', main_views.profil_user, name='profil'),
@@ -42,7 +42,8 @@ urlpatterns = [
     path('cra/all_projects/code',cra_views.get_all_project_code),
     path('cra/add_event', cra_views.add_event),
     path('event-table/<int:mois>/<int:annee>/', cra_views.event_table, name='event_table'),
-   
+    path('cra/update_event/', cra_views.update_event, name='update_event'),
+
     path('save_event/', conge_views.save_event, name="save_event"),
     path('conge/', conge_views.conge_view, name="conge_view"),
     path('fetch_events/', conge_views.fetch_events, name='fetch_events'),
