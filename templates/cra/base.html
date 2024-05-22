@@ -99,7 +99,8 @@
                 },
                 eventRender: function (event, element) {
                     const durationSpan = document.createElement('span');
-                    durationSpan.textContent = ` (${event.duration}, ${event.codeprojet})`;
+                    const formattedDuration = parseFloat(event.duration).toFixed(2); // Formatage de la durée avec deux chiffres après la virgule
+                    durationSpan.textContent = ` (${event.codeprojet})`;
                     element.find('.fc-title').append(durationSpan);
                 },
                 eventClick: function(calEvent) {
