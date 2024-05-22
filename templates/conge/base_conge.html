@@ -7,11 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.9.0/fullcalendar.css">
     <style>
-        .fc-event {
-            .fc-time {
-                display: none;
-            }
-            
+        .fc-event .fc-time {
+            display: none;
         }
     </style>
 </head>
@@ -19,120 +16,234 @@
     <div class="container">
         <div class="row">
             <div class="col-md-6">
-
+                <button id="delete-all-events-btn" class="btn btn-danger">Supprimer tous les événements</button>
             </div>
             <div class="col-md-6 text-end">
                 <div class="pdf-button">
-                    <button id="events-btn" class="btn btn-primary" >Valider les informations</button>
+                    <button id="events-btn" class="btn btn-primary">Valider les informations</button>
                 </div>
             </div>
         </div>
         <div id="calendar"></div>
     </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.9.0/fullcalendar.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@3.9.0/dist/locale-all.min.js"></script>
-<script>
-   $(document).ready(function () {
-    $('#calendar').fullCalendar({
-        locale: "fr",
-        header: {
-            left: 'prev,next today',
-            center: 'title',
-            right: 'month,agendaWeek,agendaDay'
-        },
-        selectable: true,
-        selectHelper: true,
-        editable: true,
-        eventLimit: true,
-        validRange: function (nowDate) {
-            var startOfMonth = nowDate.clone().subtract(3, 'months').startOf('month');
-            var endOfMonth = nowDate.clone().endOf('month');
-            return {
-                start: startOfMonth,
-                end: endOfMonth
-            };
-        },
-        select: function (start, end, allDay) {
-            var selectedDates = [];
-            var currentDate = start.clone();
-            
-            // Construire un tableau de dates pour les jours sélectionnés
-            while (currentDate.isBefore(end)) {
-                selectedDates.push(currentDate.format('YYYY-MM-DD'));
-                currentDate.add(1, 'day');
-            }
+    <!-- Modal for updating events -->
+    <div class="modal fade" id="update-event-modal" tabindex="-1" role="dialog" aria-labelledby="updateEventModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateEventModalLabel">Mettre à jour l'événement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="update-event-form">
+                        <input type="hidden" id="event-id" name="event-id">
+                        <div class="mb-3">
+                            <label for="event-type" class="form-label">Type d'événement</label>
+                            <select class="form-control" id="event-type" name="event-type">
+                                <option value="RTT">RTT</option>
+                                <option value="congé payé">Congé payé</option>
+                                <option value="congé non payé">Congé non payé</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 
-            // Vérifier si un événement existe déjà pour au moins une des dates sélectionnées
-            var eventExists = false;
-            selectedDates.forEach(function(date) {
-                var eventsOnSelectedDate = $('#calendar').fullCalendar('clientEvents', function(event) {
-                    return event.start.format('YYYY-MM-DD') === date;
-                });
-
-                if (eventsOnSelectedDate.length > 0) {
-                    eventExists = true;
-                    return; // Sortir de la boucle car un événement a été trouvé pour cette date
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.9.0/fullcalendar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@3.9.0/dist/locale-all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Fonction pour obtenir le cookie CSRF
+        function getCookie(name) {
+            var cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                var cookies = document.cookie.split(';');
+                for (var i = 0; i < cookies.length; i++) {
+                    var cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
                 }
+            }
+            return cookieValue;
+        }
+        var csrftoken = getCookie('csrftoken');
+
+        // Fonction pour vérifier si la méthode HTTP nécessite une protection CSRF
+        function csrfSafeMethod(method) {
+            // Ces méthodes ne nécessitent pas de protection CSRF
+            return (/^(GET|HEAD|OPTIONS|TRACE)$/.test(method));
+        }
+
+        // Ajouter le jeton CSRF à chaque requête AJAX si nécessaire
+        $.ajaxSetup({
+            beforeSend: function(xhr, settings) {
+                if (!csrfSafeMethod(settings.type) && !this.crossDomain) {
+                    xhr.setRequestHeader("X-CSRFToken", csrftoken);
+                }
+            }
+        });
+
+        $(document).ready(function () {
+            $('#calendar').fullCalendar({
+                locale: "fr",
+                header: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'month,agendaWeek,agendaDay'
+                },
+                selectable: true,
+                selectHelper: true,
+                editable: true,
+                eventLimit: true,
+                validRange: function (nowDate) {
+                    var startOfMonth = nowDate.clone().subtract(3, 'months').startOf('month');
+                    var endOfMonth = nowDate.clone().endOf('month');
+                    return {
+                        start: startOfMonth,
+                        end: endOfMonth
+                    };
+                },
+                select: function (start, end, allDay) {
+                    var selectedDates = [];
+                    var currentDate = start.clone();
+
+                    while (currentDate.isBefore(end)) {
+                        selectedDates.push(currentDate.format('YYYY-MM-DD'));
+                        currentDate.add(1, 'day');
+                    }
+
+                    var eventExists = false;
+                    selectedDates.forEach(function (date) {
+                        var eventsOnSelectedDate = $('#calendar').fullCalendar('clientEvents', function (event) {
+                            return event.start.format('YYYY-MM-DD') === date;
+                        });
+
+                        if (eventsOnSelectedDate.length > 0) {
+                            eventExists = true;
+                            return;
+                        }
+                    });
+
+                    if (eventExists) {
+                        alert("Vous ne pouvez pas ajouter plus d'un événement par jour.");
+                        return;
+                    }
+
+                    var eventType = prompt("Veuillez sélectionner le type d'événement (congé payé, congé non payé, RTT) pour le(s) " + selectedDates.join(", "));
+                    if (eventType === null) {
+                        alert("Saisie annulée. L'événement ne sera pas créé pour le(s) " + selectedDates.join(", "));
+                        return;
+                    } else if (!["RTT", "congé payé", "congé non payé"].includes(eventType.trim())) {
+                        alert("Type d'événement invalide. Veuillez choisir parmi RTT, Congé payé ou Congé non payé.");
+                        return;
+                    }
+
+                    selectedDates.forEach(function (date) {
+                        $.ajax({
+                            type: "POST",
+                            url: '/save_event/',
+                            data: {
+                                'type': eventType,
+                                'start': date,
+                                'end': date,
+                            },
+                            dataType: "json",
+                            success: function (data) {
+                                $('#calendar').fullCalendar('refetchEvents');
+                                alert("Événement ajouté avec succès pour le " + date);
+                            },
+                            error: function (data) {
+                                alert("Erreur lors de l'ajout de l'événement pour le " + date + ". Veuillez réessayer.");
+                                console.error(data);
+                            }
+                        });
+                    });
+                },
+                eventRender: function (event, element) {
+                    if (event.type) {
+                        const eventType = document.createElement('span');
+                        eventType.textContent = ` (${event.type})`;
+                        element.find('.fc-title').append(eventType);
+                    }
+                },
+                eventClick: function (calEvent) {
+                    console.log('Event clicked:', calEvent); // Log the event details for debugging
+
+                    var eventId = calEvent.id;
+                    var eventType = calEvent.type;
+
+                    if (eventId) {
+                        $('#event-id').val(eventId);
+                        $('#event-type').val(eventType);
+                        $('#update-event-modal').modal('show');
+                    } else {
+                        console.error('Event ID is missing or invalid:', calEvent);
+                        alert("L'identifiant de l'événement est manquant ou invalide.");
+                    }
+                },
+                events: '/fetch_events/'
             });
 
-            // Si au moins un événement existe déjà pour l'une des dates sélectionnées, afficher un message
-            if (eventExists) {
-                alert("Vous ne pouvez pas ajouter plus d'un événement par jour.");
-                return;
-            }
+            $('#update-event-form').submit(function (event) {
+                event.preventDefault();
 
-            // Si aucun événement n'existe pour aucune des dates sélectionnées, permettre l'ajout d'événements
-            var eventType = prompt("Veuillez sélectionner le type d'événement (congé payé, congé non payé, RTT) pour le(s) " + selectedDates.join(", "));
-            if (eventType === null) {
-                alert("Saisie annulée. L'événement ne sera pas créé pour le(s) " + selectedDates.join(", "));
-                return;
-              } else if (!["RTT", "congé payé", "congé non payé"].includes(eventType.trim())) {
-                alert("Type d'événement invalide. Veuillez choisir parmi RTT, Congé payé ou Congé non payé.");
-                return;
-              }
-            // Enregistrer l'événement pour chaque date sélectionnée
-            selectedDates.forEach(function(date) {
+                var eventId = $('#event-id').val();
+                if (!eventId) {
+                    alert("L'identifiant de l'événement est manquant ou invalide.");
+                    return;
+                }
+
+                var formData = $(this).serialize();
+
                 $.ajax({
-                    type: "POST",
-                    url: '/save_event/',
-                    data: {
-                        'type': eventType,
-                        'start': date,
-                        'end': date,
-                    },
-                    dataType: "json",
-                    success: function (data) {
+                    url: '/update_event_conge/',
+                    type: 'POST',
+                    data: formData,
+                    success: function (response) {
                         $('#calendar').fullCalendar('refetchEvents');
-                        alert("Événement ajouté avec succès pour le " + date);
+                        $('#update-event-modal').modal('hide');
                     },
-                    error: function (data) {
-                        alert("Erreur lors de l'ajout de l'événement pour le " + date + ". Veuillez réessayer.");
-                        console.error(data);
+                    error: function (xhr, status, error) {
+                        alert("Erreur lors de la mise à jour de l'événement : " + error);
                     }
                 });
             });
-        },
-        eventRender: function (event, element) {
-            if (event.type) {
-                const eventType = document.createElement('span');
-                eventType.textContent = ` (${event.type})`;
-                element.find('.fc-title').append(eventType);
-            }
-        },
-        events: '/fetch_events/' // Assurez-vous que cette URL correspond à votre vue Django pour récupérer les événements
-    });
 
-    $('#events-btn').click(function () {
-        var date = $("#calendar").fullCalendar('getDate');
-        var month = date.month() + 1;
-        var year = date.year();
-        window.location.href = "{% url 'event_summary' %}";
-    });
-});
+            $('#delete-all-events-btn').click(function () {
+                if (confirm("Êtes-vous sûr de vouloir supprimer tous les événements ?")) {
+                    $.ajax({
+                        url: '/delete_all_events/',
+                        type: 'POST',
+                        success: function (response) {
+                            if (response.status === 'success') {
+                                $('#calendar').fullCalendar('refetchEvents');
+                                alert("Tous les événements ont été supprimés.");
+                            } else {
+                                alert("Erreur lors de la suppression des événements : " + response.message);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            alert("Erreur lors de la suppression des événements : " + error);
+                        }
+                    });
+                }
+            });
 
-</script>
+            $('#events-btn').click(function () {
+                var date = $("#calendar").fullCalendar('getDate');
+                var month = date.month() + 1;
+                var year = date.year();
+                window.location.href = "{% url 'event_summary' %}";
+            });
+        });
+    </script>
 </body>
 </html>

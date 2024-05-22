@@ -3,20 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Récapitulatif des événements</title>
-    <!-- Lien vers Bootstrap CSS -->
+    <title>Résumé des Congés</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="container">
-        <h1 class="mt-5 mb-4">Récapitulatif des congés enregistrés par {{ consultant }}</h1>
-        <ul class="list-group">
-            {% for event_type, summary in event_summary.items %}
-                <li class="list-group-item">Type  : {{ event_type }} | Du {{ summary.start }} au {{ summary.end }}</li>
-            {% endfor %}
-        </ul>
+        <h1 class="mt-4">Résumé des Congés de {{ username }}</h1>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Type de Congé</th>
+                    <th>Date de Début</th>
+                    <th>Date de Fin</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event_type, period in periods_by_type.items %}
+                    <tr>
+                        <td>{{ event_type }}</td>
+                        <td>{{ period.start }}</td>
+                        <td>{{ period.end }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-    <!-- Optionnel : Lien vers Bootstrap JavaScript si vous utilisez des composants interactifs -->
-    <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script> -->
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -43,6 +43,8 @@ urlpatterns = [
     path('cra/add_event', cra_views.add_event),
     path('event-table/<int:mois>/<int:annee>/', cra_views.event_table, name='event_table'),
     path('cra/update_event/', cra_views.update_event, name='update_event'),
+    path('update_event_conge/', conge_views.update_event_conge, name='update_event_conge'),
+    path('delete_all_events/', conge_views.delete_all_events, name='delete_all_events'),  # Ajouter cette ligne
 
     path('save_event/', conge_views.save_event, name="save_event"),
     path('conge/', conge_views.conge_view, name="conge_view"),

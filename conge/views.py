@@ -1,10 +1,12 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from .models import EventConge
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 from consultant.models import Consultant
 from django.contrib.auth.models import User
+from collections import defaultdict
+from datetime import datetime
 
 
 
@@ -35,41 +37,81 @@ def save_event(request):
 
 @csrf_exempt
 def fetch_events(request):
-    if request.method == 'GET':
-        events = EventConge.objects.all()
-        serialized_events = [{'title': event.type, 'start': event.start, 'end': event.end, 'consultant': event.consultant.utilisateur.username} for event in events]
-        return JsonResponse(serialized_events, safe=False)
-    return JsonResponse({'error': 'Method not allowed'}, status=405)
+    events = EventConge.objects.all()
+    event_list = []
+    for event in events:
+        event_list.append({
+            'id': event.id,
+            'title': event.type,
+            'start': event.start.strftime("%Y-%m-%d"),
+            'end': event.end.strftime("%Y-%m-%d"),
+            'type': event.type,
+        })
+    return JsonResponse(event_list, safe=False)
 def conge_view(request):
     return render(request, 'conge/base_conge.html' )
 
 
 
 
+@login_required
 def event_summary(request):
-    # Récupérer l'utilisateur actuel
+    # Récupérer l'utilisateur connecté
     user = request.user
 
-    try:
-        # Récupérer le consultant associé à l'utilisateur actuel
-        consultant = Consultant.objects.get(utilisateur=user)
-    except Consultant.DoesNotExist:
-        # Si le consultant n'est pas trouvé, retourner une réponse d'erreur
-        return JsonResponse({'status': 'error', 'message': 'Consultant not found'}, status=404)
-    
-    # Récupérer les événements associés à ce consultant
-    events = EventConge.objects.filter(consultant=consultant)
-    
-    event_summary = {}
+    # Récupérer tous les événements de congé
+    events = EventConge.objects.filter(consultant__utilisateur=user)
+
+    # Organiser les événements par type et trier les dates
+    events_by_type = defaultdict(list)
     for event in events:
-        if event.type not in event_summary:
-            event_summary[event.type] = {'start': event.start, 'end': event.end}
-        else:
-            # Mettre à jour la date de début et la date de fin si nécessaire
-            if event.start < event_summary[event.type]['start']:
-                event_summary[event.type]['start'] = event.start
-            if event.end > event_summary[event.type]['end']:
-                event_summary[event.type]['end'] = event.end
+        events_by_type[event.type].append(event)
     
-    # Passer les événements au contexte de rendu
-    return render(request, 'conge/event_summary.html', {'events': events, 'consultant':consultant, 'event_summary': event_summary})
+    # Calculer la période cohérente pour chaque type de congé
+    periods_by_type = {}
+    for event_type, events in events_by_type.items():
+        sorted_events = sorted(events, key=lambda e: e.start)
+        start_date = sorted_events[0].start
+        end_date = sorted_events[-1].end
+        periods_by_type[event_type] = {
+            'start': start_date.strftime("%Y-%m-%d"),
+            'end': end_date.strftime("%Y-%m-%d")
+        }
+
+    context = {
+        'periods_by_type': periods_by_type,
+        'username': user.username
+    }
+    
+    return render(request, 'conge/event_summary.html', context)
+
+
+def update_event_conge(request):
+    if request.method == 'POST':
+        event_id = request.POST.get('event-id')
+        event_type = request.POST.get('event-type')
+        
+        if not event_id:
+            return JsonResponse({'status': 'error', 'message': 'Event ID is missing'})
+
+        try:
+            event = EventConge.objects.get(id=event_id)
+            event.type = event_type
+            event.save()
+            return JsonResponse({'status': 'success'})
+        except EventConge.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Event not found'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
+
+@login_required
+@csrf_exempt
+def delete_all_events(request):
+    if request.method == 'POST':
+        try:
+            EventConge.objects.filter(consultant__utilisateur=request.user).delete()
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
