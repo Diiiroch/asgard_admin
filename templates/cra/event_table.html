@@ -33,7 +33,7 @@
             font-size: 14px;
         }
 
-        .pdf-button {
+        .pdf-button, .validate-button {
             text-align: center;
             margin-bottom: 20px;
         }
@@ -42,23 +42,32 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.0/purify.min.js"></script>
-   
-   
 </head>
 <body>
 
+{% load custom_filters %}
+
 <header>
     <h1>Asgard Consulting</h1>
-    <p>CRA  de - {{ user_name }} - pour  {{ current_month }} - </p>
+    <p>CRA de - {{ user_name }} - pour {{ current_month }} - </p>
 </header>
 
 <main>
     <div class="pdf-button">
-        <button id="generate-pdf-btn" data-html2canvas-ignore="true" >Générer PDF</button>
+        <button id="generate-pdf-btn" data-html2canvas-ignore="true" data-validated="{{ validated|yesno:'true,false' }}">Générer PDF</button>
     </div>
+    {% if user|is_rh %}
+    <div class="validate-button">
+        <button id="validate-btn" data-html2canvas-ignore="true">{% if validated %}Invalider{% else %}Valider{% endif %} le tableau</button>
+    </div>
+    {% endif %}
+    
+    {% if user|is_rh %}
+
     <div class="pdf-button">
-        <a href="{% url 'create_invoice' consultant_id %}" class="btn btn-primary">Créer une facture</a>
+        <a href="{% url 'create_invoice' user.id %}" class="btn btn-primary">Créer une facture pour {{ user.username }}</a>
     </div>
+    {% endif %}
     
     <table border="1" id="a">
         <thead>
@@ -67,6 +76,7 @@
                 {% for day in all_days %}
                     <th>{{ day }}</th>
                 {% endfor %}
+                <th>Total Durée</th>
             </tr>
         </thead>
         <tbody>
@@ -81,117 +91,80 @@
                         {% endfor %}
                     </td>
                 {% endfor %}
+                <td>{{ total_duration }}</td>
             </tr>
             <tr>
-                <td>Code Projet</td>
+                <td>Projet</td>
                 {% for day in all_days %}
                     <td>
                         {% for event in events %}
                             {% if event.start.day == day %}
-                                {{ event.codeprojet.code_projet }}
+                                {{ event.codeprojet }}
                             {% endif %}
                         {% endfor %}
                     </td>
                 {% endfor %}
-            </tr>
-            <tr>
-                <td>Total Durée</td>
-                <td colspan="{{ num_days_in_month }}">{{ total_duration }}</td>
+                <td></td>
             </tr>
         </tbody>
     </table>
 </main>
 
+<script>
+    document.getElementById('generate-pdf-btn').addEventListener('click', function() {
+        var isValidated = this.getAttribute('data-validated') === 'true';
+        if (isValidated) {
+            html2canvas(document.querySelector("main")).then(function(canvas) {
+                var imgData = canvas.toDataURL('image/png');
+                var pdf = new jspdf.jsPDF('landscape', 'pt', 'a4');
+                var imgWidth = 810;
+                var pageHeight = 610;
+                var imgHeight = canvas.height * imgWidth / canvas.width;
+                var heightLeft = imgHeight;
+                var position = 0;
 
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                pdf.save('liste_evenements.pdf');
+            }).catch(function(error) {
+                console.error('Erreur lors de la génération du PDF :', error);
+            });
+        } else {
+            alert("Le tableau doit être validé avant de pouvoir générer le PDF.");
+        }
+    });
+
+    document.getElementById('validate-btn').addEventListener('click', function() {
+        var validated = this.textContent.includes('Invalider');
+        fetch("{% url 'validate_table' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ validated: !validated })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.status === 'success') {
+                  var generatePdfBtn = document.getElementById('generate-pdf-btn');
+                  generatePdfBtn.setAttribute('data-validated', data.validated.toString());
+                  this.textContent = data.validated ? 'Invalider le tableau' : 'Valider le tableau';
+              } else {
+                  alert('Erreur lors de la validation');
+              }
+          }).catch(error => {
+              console.error('Erreur lors de la validation :', error);
+          });
+    });
+</script>
 
 </body>
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-       // Sélectionner le bouton de génération de PDF
-       var generatePdfBtn = document.getElementById('generate-pdf-btn');
- 
-       // Ajouter un écouteur d'événements pour détecter le clic sur le bouton
-       generatePdfBtn.addEventListener('click', function() {
-           // Générer le PDF à partir du contenu de la page
-           generatePdfFromHtml();
-
-       });
-   }); 
-   
- 
-   function generatePdfFromHtml() {
- 
-       console.log("bimporte quoi");
-       // Sélectionner le contenu de la page à convertir en PDF
-       var htmlContent = document.documentElement.outerHTML;
- 
-       // Créer un objet jsPDF
-       var pdf = new window.jspdf.jsPDF({
-         orientation: "landscape",
- 
-       }); // Utiliser window.jspdf.jsPDF
- 
-       // Ajouter le contenu HTML au PDF
-       pdf.html(htmlContent,
-                      {
-           callback: function (pdf) {
-               // Télécharger le PDF
-               pdf.save('liste_evenements.pdf');
-           }
-       });
- 
-         
-         html2canvas(document.getElementById("a"), {
-         onrendered: function(canvas) {
-             console.log("bimporte quoi");
-             var imgData = canvas.toDataURL('image/png');
-             console.log('Report Image URL: '+imgData);
-             var doc = new jsPDF('p', 'mm', [297, 210]); //210mm wide and 297mm high
- 
-             doc.addImage(imgData, 'PNG', 10, 10);
-             doc.save('sample.pdf');
-         }
-     });
-     
-     // Sélectionner le contenu de la page à convertir en PDF
-     var htmlContent = document.documentElement.outerHTML;
- 
-     // Créer un objet jsPDF
-     var pdf = new window.jspdf.jsPDF({
-         orientation: "landscape",
-         unit: "px", // Utiliser les pixels pour les dimensions
-         format: [792, 612] // Format lettre paysage
-     });
- 
-     // Ajouter le contenu HTML au PDF
-     pdf.html(htmlContent, {
-         callback: function (pdf) {
-             // Télécharger le PDF
-             pdf.save('liste_evenements.pdf');
-         }
-     });
-     
-     
-   } 
-   function generatePdfFromHtml() {
-    // Sélectionner le contenu de la table à convertir en PDF
-    var tableContent = document.body;
-
-
-    // Convertir la table en image avec html2canvas
-    html2canvas(tableContent).then(function(canvas) {
-        var imgData = canvas.toDataURL('image/png');
-
-        // Créer un objet jsPDF
-        var doc = new window.jspdf.jsPDF('l', 'mm', [297, 210]); // Format A4 portrait
-
-        // Ajouter l'image du tableau au PDF
-        doc.addImage(imgData, 'PNG', 2, 2, doc.internal.pageSize.width, doc.internal.pageSize.height);
-
-        // Télécharger le PDF
-        doc.save('liste_evenements.pdf');
-    });
-}
-   
- </script>
 </html>

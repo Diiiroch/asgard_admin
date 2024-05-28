@@ -28,11 +28,9 @@
             </div>
             <div class="col-md-6 text-end">
                 <div class="pdf-button">
-                    <button id="events-btn" class="btn btn-primary">Valider les informations</button>
+                    <button id="events-btn" class="btn btn-primary">Enregistrer les informations</button>
                 </div>
-                {% for consultant in consultants %}
-                <a href="{% url 'create_invoice' consultant.id %}">Create Invoice</a>
-                {% endfor %}
+
             </div>
         </div>
         {% block content %}{% endblock %}
@@ -71,7 +69,7 @@
     <script>
         $(document).ready(function () {
             var durationByDay = {};
-
+        
             $('#calendar').fullCalendar({
                 locale: "fr",
                 header: {
@@ -108,17 +106,17 @@
                 },
                 eventClick: function(calEvent) {
                     console.log("Clicked event:", calEvent);
-
+        
                     var eventId = calEvent.id;
                     var duration = calEvent.duration;
                     var codeProjet = calEvent.codeprojet;
-
+        
                     $('#event-id').val(eventId);
                     $('#duration').val(duration);
                     $('#codeprojet').val(codeProjet);
-
+        
                     console.log("Event data:", { eventId, duration, codeProjet });
-
+        
                     if (eventId && duration !== undefined && codeProjet) {
                         $('#update-event-modal').modal('show');
                     } else {
@@ -127,9 +125,11 @@
                     }
                 },
                 select: function (start, end, allDay) {
-                    var date = start.format('YYYY-MM-DD');
-                    var maxDuration = 1 - (durationByDay[date] || 0);
-
+                    var startDate = start.format('YYYY-MM-DD');
+                    var endDate = end.clone().subtract(1, 'days').format('YYYY-MM-DD'); // Ajustement de la date de fin pour exclure le jour supplémentaire
+        
+                    var maxDuration = 1 - (durationByDay[startDate] || 0);
+        
                     $.ajax({
                         url: '/cra/all_events/',
                         dataType: 'json',
@@ -142,42 +142,42 @@
                                     event.end = moment(event.end);
                                 }
                             });
-
+        
                             var existingEvents = data.filter(function (event) {
-                                return event.start.format('YYYY-MM-DD') === date;
+                                return event.start.format('YYYY-MM-DD') === startDate;
                             });
-
+        
                             var totalExistingDuration = existingEvents.reduce(function (total, event) {
                                 return total + event.duration;
                             }, 0);
-
+        
                             maxDuration -= totalExistingDuration;
-
+        
                             var duration = prompt("Veuillez saisir la durée de l'événement (en heures)");
-
+        
                             if (duration === null) {
                                 alert("Saisie de la durée annulée. L'événement ne sera pas créé.");
                                 return;
                             }
-
+        
                             duration = parseFloat(duration);
-
+        
                             if (duration <= 0 || duration > maxDuration) {
                                 alert("La durée de l'événement doit être supérieure à 0 et inférieure ou égale à " + maxDuration);
                                 return;
                             }
-
+        
                             var codeprojet = $('#selectProject').val();
                             if (codeprojet) {
                                 $.ajax({
                                     type: "GET",
                                     url: '/cra/add_event',
-                                    data: { 'duration': duration, 'start': start.format(), 'end': end.format(), 'codeprojet': codeprojet },
+                                    data: { 'duration': duration, 'start': startDate, 'end': endDate, 'codeprojet': codeprojet },
                                     dataType: "json",
                                     success: function (data) {
                                         $('#calendar').fullCalendar('refetchEvents');
                                         alert("Événement ajouté avec succès");
-                                        durationByDay[date] = (durationByDay[date] || 0) + duration;
+                                        durationByDay[startDate] = (durationByDay[startDate] || 0) + duration;
                                     },
                                     error: function (data) {
                                         alert("Erreur lors de l'ajout de l'événement. Veuillez réessayer.");
@@ -191,13 +191,13 @@
                     });
                 }
             });
-
+        
             $('#update-event-form').submit(function(event) {
                 event.preventDefault();
-
+        
                 var formData = $(this).serialize();
                 console.log("Form data being sent:", formData);
-
+        
                 $.ajax({
                     url: '/cra/update_event/',
                     type: 'POST',
@@ -214,7 +214,7 @@
                 });
             });
         });
-
+        
         document.addEventListener("DOMContentLoaded", function () {
             // Sélectionner le bouton de génération de PDF
             var events_btn = document.getElementById('events-btn');
@@ -225,7 +225,7 @@
                 redirect_events();
             });
         });
-
+        
         function redirect_events() {
             var date = $("#calendar").fullCalendar('getDate');
             var month = date.month() + 1;

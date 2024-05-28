@@ -1,55 +1,61 @@
 import datetime
-from django.shortcuts import render
-from django.http import JsonResponse 
-from .models import Events, Invoice
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse
+from .models import Events, Invoice, ValidationTable
 from consultant.models import Projet, Consultant
-import re
 from django.utils import timezone
-import datetime
 from django import forms
-from django.http import HttpResponseBadRequest
 from django.core.exceptions import ValidationError
-from django.db.models import Q
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.template.loader import render_to_string
-from django.shortcuts import render,  get_object_or_404, redirect
 from collections import defaultdict
 from django.views.decorators.csrf import csrf_exempt
 import logging
-from decimal import Decimal  # Ajoutez cette ligne
-
-
+from decimal import Decimal
+from django.views.decorators.http import require_POST
 from datetime import datetime, timedelta
 import calendar
+import json
+from django.contrib.auth.decorators import login_required, user_passes_test
 
-from datetime import datetime
-from django.http import HttpResponse
 
 
+
+def is_in_rh_group(user):
+    return user.groups.filter(name='RH').exists()
+
+@login_required
+@require_POST
+@user_passes_test(is_in_rh_group)
+def validate_table(request):
+    data = json.loads(request.body)
+    validated = data.get('validated', False)
+    validation_table = ValidationTable.objects.filter(validated=not validated).first()
+    if validation_table:
+        validation_table.validated = validated
+        validation_table.save()
+        return JsonResponse({'status': 'success', 'validated': validation_table.validated})
+    return JsonResponse({'status': 'error'}, status=400)
 logger = logging.getLogger(__name__)
+
 class EventForm(forms.ModelForm):
     class Meta:
         model = Events
         fields = ['codeprojet', 'duration', 'start', 'end']
-
 
 def index(request):  
     consultants = Consultant.objects.all()
     all_events = Events.objects.all()
     projets = Projet.objects.all()
     context = {
-        "events":all_events,
+        "events": all_events,
         'projets': projets,
         'consultants': consultants
-        
     }
-    return render(request,'cra/index.html',context)
-
-    
+    return render(request, 'cra/index.html', context)
 
 def get_all_project_code(request):
-    data = list(Projet.objects.values())  # Query your model and convert to a list of dictionaries
-    print(JsonResponse(data, safe=False))
+    data = list(Projet.objects.values())
     return JsonResponse(data, safe=False)
 
 def my_view(request):
@@ -57,27 +63,24 @@ def my_view(request):
     projets = Projet.objects.all()
     context = {
         'projets': projets,
-        'consultants':consultants
+        'consultants': consultants
     }
     return render(request, 'base.html', context)
 
 def all_events(request):
     if request.method == 'GET' and request.is_ajax():
-        # Récupérer tous les événements
         events = Events.objects.all()
-        
-        # Créer une liste des événements au format JSON
-        events_data = []
-        for event in events:
-            events_data.append({
-                'id': event.id,  # Ajouter l'ID de l'événement
-                'title': f"{event.duration:.1f}",  # Afficher la durée de l'événement
-                'start': event.start.isoformat(),  # Date de début de l'événement au format ISO 8601
-                'end': event.end.isoformat(),  # Date de fin de l'événement au format ISO 8601
-                'codeprojet': event.codeprojet.code_projet,  # Code du projet associé à l'événement
-                'duration': event.duration,  # Ajouter la durée de l'événement
-            })
-        
+        events_data = [
+            {
+                'id': event.id,
+                'title': f"{event.duration:.1f}",
+                'start': event.start.isoformat(),
+                'end': event.end.isoformat(),
+                'codeprojet': event.codeprojet.code_projet,
+                'duration': event.duration
+            }
+            for event in events
+        ]
         return JsonResponse(events_data, safe=False)
     else:
         return JsonResponse({'error': 'Requête invalide'}, status=400)
@@ -124,6 +127,7 @@ def update_event(request):
     else:
         logger.error("Méthode de requête non valide : %s", request.method)
         return JsonResponse({'error': 'Invalid request method'}, status=405)
+
 def add_event(request):
     if request.method == 'GET':
         codeprojet_id = request.GET.get('codeprojet')
@@ -149,6 +153,15 @@ def add_event(request):
                 event.save()
                 # Passer au jour suivant
                 current_date += timedelta(days=1)
+            
+            # Ajouter l'événement pour le dernier jour (date de fin)
+            event = Events(codeprojet_id=codeprojet_id, duration=duration, start=end, end=end)
+            if not event.is_valid_event_duration():
+                return JsonResponse({'error': 'La durée de l\'événement dépasse 1 heure pour ce jour'}, status=400)
+            event.save()
+
+            # Mettre à jour le modèle ValidationTable
+            transfer_events(start.month, start.year)
 
             return JsonResponse({'success': 'Événement ajouté avec succès'}, status=201)
         else:
@@ -173,24 +186,26 @@ def invoice_detail(request, pk):
         'price_ht': price_ht,
         'tva': tva,
         'price_ttc': price_ttc,
-        'tjm': tjm,
+        'tjm': tjm
     }
     return render(request, 'cra/invoice_detail.html', context)
 
-
-
 def event_table(request, mois, annee):
-    # Récupérer tous les événements de la base de données
-    consultant = get_object_or_404(Consultant, utilisateur=request.user)
-    all_events = Events.objects.filter(start__month=mois, start__year=annee)
+    user_is_rh = request.user.groups.filter(name='RH').exists()
 
+    # Transférer les événements du modèle Events au modèle ValidationTable
+    transfer_events(mois, annee)
+    
+    # Récupérer les événements du nouveau modèle ValidationTable
+    consultant = get_object_or_404(Consultant, utilisateur=request.user)
+    validation_table = ValidationTable.objects.filter(events__start__month=mois, events__start__year=annee).first()
+    all_events = validation_table.events.all() if validation_table else Events.objects.none()
+    
     # Créer une liste de tous les jours du mois
-    ##_, num_days_in_month = calendar.monthrange(datetime.now().year, datetime.now().month)
     _, num_days_in_month = calendar.monthrange(annee, mois)
     all_days = list(range(1, num_days_in_month + 1))
-    print(all_days)
     
-    # Récupérer le nom de l'utilisateur connecté    
+    # Récupérer le nom de l'utilisateur connecté
     user_name = request.user.get_username()
 
     # Récupérer le mois actuel
@@ -206,11 +221,22 @@ def event_table(request, mois, annee):
         "user_name": user_name,
         'consultant_id': consultant.id,
         "current_month": current_month,
+        "user_is_rh": user_is_rh,
         "num_days_in_month": num_days_in_month,
         "total_duration": total_duration,
+        "validated": validation_table.validated if validation_table else False
     }
 
     # Rendre le template HTML avec le contexte
-   
     return render(request, 'cra/event_table.html', context)
+
+def transfer_events(mois, annee):
+    existing_events = Events.objects.filter(start__month=mois, start__year=annee)
+    if existing_events.exists():
+        validation_table, created = ValidationTable.objects.get_or_create(
+            validated=False,
+        )
+        validation_table.events.set(existing_events)
+        validation_table.save()
+
 

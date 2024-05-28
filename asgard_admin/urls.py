@@ -54,7 +54,7 @@ urlpatterns = [
 
     path('create_invoice/<int:consultant_id>/', cra_views.create_invoice, name='create_invoice'),
     path('invoice/<int:pk>/', cra_views.invoice_detail, name='invoice_detail'),
-       
+    path('validate-table/', cra_views.validate_table, name='validate_table'),   
    
     
     

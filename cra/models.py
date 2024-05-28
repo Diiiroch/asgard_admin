@@ -53,3 +53,9 @@ class Invoice(models.Model):
         return f"Invoice for {self.consultant.utilisateur.username} on {self.created_at}"
 
 
+class ValidationTable(models.Model):
+    events = models.ManyToManyField(Events)
+    validated = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"ValidationTable - Validated: {self.validated}"
