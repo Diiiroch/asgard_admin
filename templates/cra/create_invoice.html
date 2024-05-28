@@ -1,0 +1,20 @@
+
+  <h2>Create Invoice</h2>
+  <form method="post">
+    {% csrf_token %}
+    <label for="consultant">Consultant:</label>
+    <select name="consultant" id="consultant">
+      {% for consultant in consultants %}
+        <option value="{{ consultant.id }}">{{ consultant.name }}</option>
+      {% endfor %}
+    </select>
+    <br>
+    <label for="event_table_sum">Event Table Sum:</label>
+    <input type="text" name="event_table_sum" id="event_table_sum" required>
+    <br>
+    <label for="tjm">TJM:</label>
+    <input type="text" name="tjm" id="tjm" required>
+    <br>
+    <button type="submit">Create</button>
+  </form>
+

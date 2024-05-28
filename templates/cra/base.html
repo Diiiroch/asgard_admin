@@ -30,6 +30,9 @@
                 <div class="pdf-button">
                     <button id="events-btn" class="btn btn-primary">Valider les informations</button>
                 </div>
+                {% for consultant in consultants %}
+                <a href="{% url 'create_invoice' consultant.id %}">Create Invoice</a>
+                {% endfor %}
             </div>
         </div>
         {% block content %}{% endblock %}

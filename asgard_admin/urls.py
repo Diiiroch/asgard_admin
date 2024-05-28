@@ -52,7 +52,8 @@ urlpatterns = [
     path('event-summary/', conge_views.event_summary, name='event_summary'),
 
 
-  
+    path('create_invoice/<int:consultant_id>/', cra_views.create_invoice, name='create_invoice'),
+    path('invoice/<int:pk>/', cra_views.invoice_detail, name='invoice_detail'),
        
    
     

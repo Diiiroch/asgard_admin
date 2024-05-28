@@ -37,7 +37,8 @@ class Consultant(models.Model):
     id = models.AutoField(primary_key=True)
     utilisateur = models.ForeignKey(User, null=True, default=None,on_delete=models.CASCADE, db_constraint=False)
     clients = models.ManyToManyField(Client)
-   
+    tjm = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Taux journalier moyen
+
 
     class Meta:
         verbose_name = ("consultant")

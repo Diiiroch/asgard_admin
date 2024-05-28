@@ -1,8 +1,8 @@
 import datetime
 from django.shortcuts import render
 from django.http import JsonResponse 
-from .models import Events
-from consultant.models import Projet
+from .models import Events, Invoice
+from consultant.models import Projet, Consultant
 import re
 from django.utils import timezone
 import datetime
@@ -12,10 +12,11 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.db.models import Sum
 from django.template.loader import render_to_string
-from django.shortcuts import render,  get_object_or_404
+from django.shortcuts import render,  get_object_or_404, redirect
 from collections import defaultdict
 from django.views.decorators.csrf import csrf_exempt
 import logging
+from decimal import Decimal  # Ajoutez cette ligne
 
 
 from datetime import datetime, timedelta
@@ -33,11 +34,13 @@ class EventForm(forms.ModelForm):
 
 
 def index(request):  
+    consultants = Consultant.objects.all()
     all_events = Events.objects.all()
     projets = Projet.objects.all()
     context = {
         "events":all_events,
-        'projets': projets
+        'projets': projets,
+        'consultants': consultants
         
     }
     return render(request,'cra/index.html',context)
@@ -50,9 +53,11 @@ def get_all_project_code(request):
     return JsonResponse(data, safe=False)
 
 def my_view(request):
+    consultants = Consultant.objects.all()
     projets = Projet.objects.all()
     context = {
         'projets': projets,
+        'consultants':consultants
     }
     return render(request, 'base.html', context)
 
@@ -151,11 +156,32 @@ def add_event(request):
     else:
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
 
+def create_invoice(request, consultant_id):
+    consultant = get_object_or_404(Consultant, pk=consultant_id)
+    invoice = Invoice(consultant=consultant)
+    invoice.calculate_prices()
+    return redirect('invoice_detail', pk=invoice.pk)
+
+def invoice_detail(request, pk):
+    invoice = get_object_or_404(Invoice, pk=pk)
+    price_ht = invoice.price_ht
+    tva = price_ht * Decimal(0.2)
+    price_ttc = price_ht + tva
+    tjm = invoice.tjm
+    context = {
+        'invoice': invoice,
+        'price_ht': price_ht,
+        'tva': tva,
+        'price_ttc': price_ttc,
+        'tjm': tjm,
+    }
+    return render(request, 'cra/invoice_detail.html', context)
 
 
 
 def event_table(request, mois, annee):
     # Récupérer tous les événements de la base de données
+    consultant = get_object_or_404(Consultant, utilisateur=request.user)
     all_events = Events.objects.filter(start__month=mois, start__year=annee)
 
     # Créer une liste de tous les jours du mois
@@ -164,7 +190,7 @@ def event_table(request, mois, annee):
     all_days = list(range(1, num_days_in_month + 1))
     print(all_days)
     
-    # Récupérer le nom de l'utilisateur connecté
+    # Récupérer le nom de l'utilisateur connecté    
     user_name = request.user.get_username()
 
     # Récupérer le mois actuel
@@ -178,6 +204,7 @@ def event_table(request, mois, annee):
         "events": all_events,
         "all_days": all_days,
         "user_name": user_name,
+        'consultant_id': consultant.id,
         "current_month": current_month,
         "num_days_in_month": num_days_in_month,
         "total_duration": total_duration,
