@@ -17,8 +17,10 @@ from datetime import datetime, timedelta
 import calendar
 import json
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.utils.dateparse import parse_datetime
+import logging
 
-
+logger = logging.getLogger(__name__)
 
 
 def is_in_rh_group(user):
@@ -69,7 +71,10 @@ def my_view(request):
 
 def all_events(request):
     if request.method == 'GET' and request.is_ajax():
-        events = Events.objects.all()
+        # Obtenir le consultant associé à l'utilisateur connecté
+        consultant = get_object_or_404(Consultant, utilisateur=request.user)
+        events = Events.objects.filter(consultant=consultant)
+        
         events_data = [
             {
                 'id': event.id,
@@ -131,42 +136,58 @@ def update_event(request):
 def add_event(request):
     if request.method == 'GET':
         codeprojet_id = request.GET.get('codeprojet')
-        duration = float(request.GET.get('duration'))
-        start = datetime.strptime(request.GET.get('start'), '%Y-%m-%d')
-        end = datetime.strptime(request.GET.get('end'), '%Y-%m-%d')
+        duration = request.GET.get('duration')
+        start = request.GET.get('start')
+        end = request.GET.get('end')
 
-        if codeprojet_id and duration and start and end:
-            # Vérifier si la somme totale des durées des événements pour ce jour dépasse 1 heure
-            events_on_date = Events.objects.filter(start__date=start.date())
-            total_duration_on_date = sum(event.duration for event in events_on_date)
-            if total_duration_on_date + duration > 1.0:
-                return JsonResponse({'error': 'La durée de l\'événement dépasse 1 heure pour ce jour'}, status=400)
+        logger.debug(f'Reçu - codeprojet: {codeprojet_id}, duration: {duration}, start: {start}, end: {end}')
 
-            # Créer une instance d'Events avec les objets datetime pour chaque jour
-            current_date = start
-            while current_date < end:
-                event = Events(codeprojet_id=codeprojet_id, duration=duration, start=current_date, end=current_date)
-                # Vérifier si la durée de l'événement est valide
-                if not event.is_valid_event_duration():
-                    return JsonResponse({'error': 'La durée de l\'événement dépasse 1 heure pour ce jour'}, status=400)
-                # Sauvegarder l'événement pour ce jour
-                event.save()
-                # Passer au jour suivant
-                current_date += timedelta(days=1)
-            
-            # Ajouter l'événement pour le dernier jour (date de fin)
-            event = Events(codeprojet_id=codeprojet_id, duration=duration, start=end, end=end)
-            if not event.is_valid_event_duration():
-                return JsonResponse({'error': 'La durée de l\'événement dépasse 1 heure pour ce jour'}, status=400)
-            event.save()
-
-            # Mettre à jour le modèle ValidationTable
-            transfer_events(start.month, start.year)
-
-            return JsonResponse({'success': 'Événement ajouté avec succès'}, status=201)
-        else:
+        if not (codeprojet_id and duration and start and end):
+            logger.error('Tous les paramètres nécessaires n\'ont pas été fournis')
             return JsonResponse({'error': 'Tous les paramètres nécessaires n\'ont pas été fournis'}, status=400)
+
+        try:
+            duration = float(duration)
+            start = datetime.strptime(start, '%Y-%m-%d')
+            end = datetime.strptime(end, '%Y-%m-%d')
+        except ValueError as e:
+            logger.error(f'Erreur de format des données: {str(e)}')
+            return JsonResponse({'error': f'Erreur de format des données: {str(e)}'}, status=400)
+
+        consultant = get_object_or_404(Consultant, utilisateur=request.user)
+        logger.debug(f'Consultant trouvé: {consultant}')
+
+        events_on_date = Events.objects.filter(start__date=start.date(), consultant=consultant)
+        total_duration_on_date = sum(event.duration for event in events_on_date)
+        logger.debug(f'Durée totale des événements pour le {start.date()}: {total_duration_on_date}')
+
+        if total_duration_on_date + duration > 1.0:
+            logger.error('La durée de l\'événement dépasse 1 heure pour ce jour')
+            return JsonResponse({'error': 'La durée de l\'événement dépasse 1 heure pour ce jour'}, status=400)
+
+        current_date = start
+        while current_date <= end:
+            event = Events(
+                codeprojet_id=codeprojet_id, 
+                duration=duration, 
+                start=current_date, 
+                end=current_date, 
+                consultant=consultant
+            )
+            try:
+                if not event.is_valid_event_duration():
+                    logger.error('La durée de l\'événement dépasse 1 heure pour ce jour')
+                    return JsonResponse({'error': 'La durée de l\'événement dépasse 1 heure pour ce jour'}, status=400)
+                event.save()
+            except ValueError as e:
+                logger.error(f'Erreur lors de l\'enregistrement de l\'événement: {str(e)}')
+                return JsonResponse({'error': f'Erreur lors de l\'enregistrement de l\'événement: {str(e)}'}, status=400)
+            current_date += timedelta(days=1)
+
+        logger.debug('Événement ajouté avec succès')
+        return JsonResponse({'success': 'Événement ajouté avec succès'}, status=201)
     else:
+        logger.error('Méthode non autorisée')
         return JsonResponse({'error': 'Méthode non autorisée'}, status=405)
 
 def create_invoice(request, consultant_id):
@@ -193,28 +214,21 @@ def invoice_detail(request, pk):
 def event_table(request, mois, annee):
     user_is_rh = request.user.groups.filter(name='RH').exists()
 
-    # Transférer les événements du modèle Events au modèle ValidationTable
-    transfer_events(mois, annee)
-    
-    # Récupérer les événements du nouveau modèle ValidationTable
+    # Obtenez le consultant associé à l'utilisateur connecté
     consultant = get_object_or_404(Consultant, utilisateur=request.user)
-    validation_table = ValidationTable.objects.filter(events__start__month=mois, events__start__year=annee).first()
-    all_events = validation_table.events.all() if validation_table else Events.objects.none()
-    
-    # Créer une liste de tous les jours du mois
+    transfer_events(mois, annee, consultant)
+
+    # Filtrez les événements par consultant
+    validation_table = ValidationTable.objects.filter(consultant=consultant, events__start__month=mois, events__start__year=annee).first()
+    all_events = validation_table.events.all() if validation_table else Events.objects.filter(consultant=consultant, start__month=mois, start__year=annee)
+
     _, num_days_in_month = calendar.monthrange(annee, mois)
     all_days = list(range(1, num_days_in_month + 1))
-    
-    # Récupérer le nom de l'utilisateur connecté
+
     user_name = request.user.get_username()
-
-    # Récupérer le mois actuel
     current_month = calendar.month_name[mois]
-
-    # Calculer la somme totale des durées pour afficher dans la case "Total Durée"
     total_duration = sum(event.duration for event in all_events)
 
-    # Créer le dictionnaire de contexte à passer au template
     context = {
         "events": all_events,
         "all_days": all_days,
@@ -227,16 +241,14 @@ def event_table(request, mois, annee):
         "validated": validation_table.validated if validation_table else False
     }
 
-    # Rendre le template HTML avec le contexte
     return render(request, 'cra/event_table.html', context)
 
-def transfer_events(mois, annee):
-    existing_events = Events.objects.filter(start__month=mois, start__year=annee)
+def transfer_events(mois, annee, consultant):
+    existing_events = Events.objects.filter(start__month=mois, start__year=annee, consultant=consultant)
     if existing_events.exists():
         validation_table, created = ValidationTable.objects.get_or_create(
+            consultant=consultant,
             validated=False,
         )
         validation_table.events.set(existing_events)
         validation_table.save()
-
-

@@ -5,40 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Liste des événements</title>
     <style>
-        /* Styles communs */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
         }
-
         table {
             border-collapse: collapse;
             width: 100%;
         }
-
         th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: center;
         }
-
         th {
             background-color: #f2f2f2;
             font-weight: bold;
             font-size: 16px;
         }
-
         td {
             font-size: 14px;
         }
-
         .pdf-button, .validate-button {
             text-align: center;
             margin-bottom: 20px;
         }
     </style>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.0/purify.min.js"></script>
@@ -56,14 +49,13 @@
     <div class="pdf-button">
         <button id="generate-pdf-btn" data-html2canvas-ignore="true" data-validated="{{ validated|yesno:'true,false' }}">Générer PDF</button>
     </div>
-    {% if user|is_rh %}
+    {% if user_is_rh %}
     <div class="validate-button">
         <button id="validate-btn" data-html2canvas-ignore="true">{% if validated %}Invalider{% else %}Valider{% endif %} le tableau</button>
     </div>
     {% endif %}
     
-    {% if user|is_rh %}
-
+    {% if user_is_rh %}
     <div class="pdf-button">
         <a href="{% url 'create_invoice' user.id %}" class="btn btn-primary">Créer une facture pour {{ user.username }}</a>
     </div>

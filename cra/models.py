@@ -1,6 +1,7 @@
 from django.db import models
 from consultant.models import Projet, Consultant
 from django.db.models import Q
+from django.contrib.auth.models import User  
 from decimal import Decimal
 
 class Events(models.Model):
@@ -8,6 +9,7 @@ class Events(models.Model):
     duration = models.FloatField(choices=[(1, '1'), (0.5, '0.5'), (0.25, '0.25')], default=1)
     start = models.DateTimeField()
     end = models.DateTimeField()
+    consultant = models.ForeignKey(Consultant, on_delete=models.CASCADE, null=True)
 
     def serialize(self):
         return {
@@ -19,11 +21,11 @@ class Events(models.Model):
         }
 
     def is_valid_event_duration(self):
-        # Exclure l'événement en cours de modification de la validation
-        events_on_date = Events.objects.filter(start__date=self.start.date()).exclude(Q(id=self.id))
+        # Exclure l'événement actuel lors de la vérification de la durée totale
+        events_on_date = Events.objects.filter(start__date=self.start.date(), consultant=self.consultant).exclude(pk=self.pk)
         total_duration_on_date = sum(event.duration for event in events_on_date)
-        
         return total_duration_on_date + self.duration <= 1.0
+
 
     def save(self, *args, **kwargs):
         if not self.is_valid_event_duration():
@@ -55,6 +57,7 @@ class Invoice(models.Model):
 
 class ValidationTable(models.Model):
     events = models.ManyToManyField(Events)
+    consultant = models.ForeignKey(Consultant, on_delete=models.CASCADE, null=True)  # Ajouter ce champ
     validated = models.BooleanField(default=False)
 
     def __str__(self):
