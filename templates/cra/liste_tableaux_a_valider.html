@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Liste des Tableaux à Valider</title>
+</head>
+<body>
+    <h1>Liste des Tableaux à Valider</h1>
+    <ul>
+        {% for tableau in tableaux %}
+            <li>Tableau {{ tableau.id }} à valider</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

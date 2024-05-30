@@ -1,4 +1,3 @@
-import datetime
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from .models import Events, Invoice, ValidationTable
@@ -17,11 +16,9 @@ from datetime import datetime, timedelta
 import calendar
 import json
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.utils.dateparse import parse_datetime
-import logging
+from django.urls import reverse
 
 logger = logging.getLogger(__name__)
-
 
 def is_in_rh_group(user):
     return user.groups.filter(name='RH').exists()
@@ -38,14 +35,19 @@ def validate_table(request):
         validation_table.save()
         return JsonResponse({'status': 'success', 'validated': validation_table.validated})
     return JsonResponse({'status': 'error'}, status=400)
-logger = logging.getLogger(__name__)
 
 class EventForm(forms.ModelForm):
     class Meta:
         model = Events
         fields = ['codeprojet', 'duration', 'start', 'end']
 
+@login_required
 def index(request):  
+    logger.info(f"User {request.user.username} accessed index.")
+    if is_in_rh_group(request.user):
+        logger.info(f"User {request.user.username} is in RH group, redirecting to liste_tableaux_a_valider.")
+        return redirect(reverse('liste_tableaux_a_valider'))
+
     consultants = Consultant.objects.all()
     all_events = Events.objects.all()
     projets = Projet.objects.all()
@@ -60,18 +62,31 @@ def get_all_project_code(request):
     data = list(Projet.objects.values())
     return JsonResponse(data, safe=False)
 
+@login_required
 def my_view(request):
+    logger.info(f"User {request.user.username} accessed my_view.")
+    if is_in_rh_group(request.user):
+        logger.info(f"User {request.user.username} is in RH group, redirecting to liste_tableaux_a_valider.")
+        return redirect(reverse('liste_tableaux_a_valider'))
+
     consultants = Consultant.objects.all()
     projets = Projet.objects.all()
     context = {
         'projets': projets,
         'consultants': consultants
     }
-    return render(request, 'base.html', context)
+    return render(request, 'cra/base.html', context)
+
+@login_required
+def liste_tableaux_a_valider(request):
+    tableaux = ValidationTable.objects.filter(validated=False)
+    context = {
+        'tableaux': tableaux
+    }
+    return render(request, 'cra/liste_tableaux_a_valider.html', context)
 
 def all_events(request):
     if request.method == 'GET' and request.is_ajax():
-        # Obtenir le consultant associé à l'utilisateur connecté
         consultant = get_object_or_404(Consultant, utilisateur=request.user)
         events = Events.objects.filter(consultant=consultant)
         
@@ -211,6 +226,7 @@ def invoice_detail(request, pk):
     }
     return render(request, 'cra/invoice_detail.html', context)
 
+@login_required
 def event_table(request, mois, annee):
     user_is_rh = request.user.groups.filter(name='RH').exists()
 

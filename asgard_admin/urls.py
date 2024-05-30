@@ -1,4 +1,3 @@
-
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
@@ -11,9 +10,8 @@ from consultant import views as consultant_view
 from conge import views as conge_views
 
 urlpatterns = [
-    path('',main_views.Accueil, name='Accueil'),
+    path('', main_views.Accueil, name='Accueil'),
     path('admin/', admin.site.urls), 
-
     path('logout_user/', main_views.logout_user, name='logout'),
     path('missions_clients/<int:consultant_id>/', consultant_view.missions_clients, name='missions_clients'),
     path('profil_user/', main_views.profil_user, name='profil'),
@@ -37,27 +35,28 @@ urlpatterns = [
     path('contrat/<int:contrat_id>/download/', consultant_view.download_contrat, name='download_contrat'),
     path('ajouter_projet/', RedirectView.as_view(url='/admin/consultant/projet/add/'), name='ajouter_projet'),
     path('modifier_projet/', RedirectView.as_view(url='/admin/consultant/projet/'), name='modifier_projet'),
-    path('cra/', cra_views.index, name='index_cra'),
-    path('cra/all_events/', cra_views.all_events, name='all_events'),
-    path('cra/all_projects/code',cra_views.get_all_project_code),
-    path('cra/add_event', cra_views.add_event),
-    path('event-table/<int:mois>/<int:annee>/', cra_views.event_table, name='event_table'),
-    path('cra/update_event/', cra_views.update_event, name='update_event'),
-    path('update_event_conge/', conge_views.update_event_conge, name='update_event_conge'),
-    path('delete_all_events/', conge_views.delete_all_events, name='delete_all_events'),  # Ajouter cette ligne
 
-    path('save_event/', conge_views.save_event, name="save_event"),
-    path('conge/', conge_views.conge_view, name="conge_view"),
+    # URLs pour l'application cra
+    path('cra/', cra_views.index, name='index_cra'),
+    path('cra/saisir/', cra_views.my_view, name='saisir_cra'),
+    path('cra/liste_tableaux_a_valider/', cra_views.liste_tableaux_a_valider, name='liste_tableaux_a_valider'),
+    path('cra/all_events/', cra_views.all_events, name='all_events'),
+    path('cra/add_event/', cra_views.add_event, name='add_event'),
+    path('cra/update_event/', cra_views.update_event, name='update_event'),
+    path('cra/create_invoice/<int:consultant_id>/', cra_views.create_invoice, name='create_invoice'),
+    path('cra/invoice/<int:pk>/', cra_views.invoice_detail, name='invoice_detail'),
+    path('cra/validate_table/', cra_views.validate_table, name='validate_table'),
+    path('cra/event-table/<int:mois>/<int:annee>/', cra_views.event_table, name='event_table'),
+    path('cra/get_all_project_code/', cra_views.get_all_project_code, name='get_all_project_code'),
+
+    # URLs pour l'application conge
+    path('update_event_conge/', conge_views.update_event_conge, name='update_event_conge'),
+    path('delete_all_events/', conge_views.delete_all_events, name='delete_all_events'),
+    path('save_event/', conge_views.save_event, name='save_event'),
+    path('conge/', conge_views.conge_view, name='conge_view'),
     path('fetch_events/', conge_views.fetch_events, name='fetch_events'),
     path('event-summary/', conge_views.event_summary, name='event_summary'),
-
-
-    path('create_invoice/<int:consultant_id>/', cra_views.create_invoice, name='create_invoice'),
-    path('invoice/<int:pk>/', cra_views.invoice_detail, name='invoice_detail'),
-    path('validate-table/', cra_views.validate_table, name='validate_table'),   
-   
-    
-    
 ]
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
