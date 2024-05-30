@@ -28,13 +28,17 @@ def is_in_rh_group(user):
 @user_passes_test(is_in_rh_group)
 def validate_table(request):
     data = json.loads(request.body)
+    table_id = data.get('id')
     validated = data.get('validated', False)
-    validation_table = ValidationTable.objects.filter(validated=not validated).first()
-    if validation_table:
+    try:
+        validation_table = ValidationTable.objects.get(id=table_id)
         validation_table.validated = validated
         validation_table.save()
         return JsonResponse({'status': 'success', 'validated': validation_table.validated})
-    return JsonResponse({'status': 'error'}, status=400)
+    except ValidationTable.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Tableau introuvable'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 class EventForm(forms.ModelForm):
     class Meta:
@@ -78,8 +82,9 @@ def my_view(request):
     return render(request, 'cra/base.html', context)
 
 @login_required
+@login_required
 def liste_tableaux_a_valider(request):
-    tableaux = ValidationTable.objects.filter(validated=False)
+    tableaux = ValidationTable.objects.all()  # Récupérer tous les tableaux, validés et non validés
     context = {
         'tableaux': tableaux
     }
@@ -268,3 +273,37 @@ def transfer_events(mois, annee, consultant):
         )
         validation_table.events.set(existing_events)
         validation_table.save()
+        
+        
+@login_required
+def detail_tableau(request, tableau_id):
+    tableau = get_object_or_404(ValidationTable, id=tableau_id)
+    consultant = tableau.consultant
+    events = tableau.events.all()
+    
+    # Obtenez le mois et l'année des événements
+    if events.exists():
+        sample_event = events.first()
+        mois = sample_event.start.month
+        annee = sample_event.start.year
+    else:
+        mois = datetime.now().month
+        annee = datetime.now().year
+
+    _, num_days_in_month = calendar.monthrange(annee, mois)
+    all_days = list(range(1, num_days_in_month + 1))
+    
+    total_duration = sum(event.duration for event in events)
+    
+    context = {
+        'tableau': tableau,
+        'consultant': consultant,
+        'events': events,
+        'all_days': all_days,
+        'total_duration': total_duration,
+        'user_name': consultant.utilisateur.get_username(),
+        'current_month': calendar.month_name[mois],
+        'validated': tableau.validated,
+        'user_is_rh': is_in_rh_group(request.user)
+    }
+    return render(request, 'cra/detail_tableau.html', context)

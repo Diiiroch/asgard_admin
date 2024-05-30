@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liste des événements</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        td {
+            font-size: 14px;
+        }
+        .pdf-button, .validate-button {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.0/purify.min.js"></script>
+</head>
+<body>
+
+<header>
+    <h1>Asgard Consulting</h1>
+    <p>CRA de - {{ user_name }} - pour {{ current_month }} - </p>
+</header>
+
+<main>
+    <div class="pdf-button">
+        <button id="generate-pdf-btn" data-html2canvas-ignore="true" data-validated="{{ validated|yesno:'true,false' }}">Générer PDF</button>
+    </div>
+    {% if user_is_rh %}
+    <div class="validate-button">
+        <button id="validate-btn" data-html2canvas-ignore="true">{% if validated %}Invalider{% else %}Valider{% endif %} le tableau</button>
+    </div>
+    {% endif %}
+    
+    {% if user_is_rh %}
+    <div class="pdf-button">
+        <a href="{% url 'create_invoice' consultant.id %}" class="btn btn-primary">Créer une facture pour {{ user_name }}</a>
+    </div>
+    {% endif %}
+    
+    <table border="1" id="a">
+        <thead>
+            <tr>
+                <th>Jour</th>
+                {% for day in all_days %}
+                    <th>{{ day }}</th>
+                {% endfor %}
+                <th>Total Durée</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Durée</td>
+                {% for day in all_days %}
+                    <td>
+                        {% for event in events %}
+                            {% if event.start.day == day %}
+                                {{ event.duration }}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                {% endfor %}
+                <td>{{ total_duration }}</td>
+            </tr>
+            <tr>
+                <td>Projet</td>
+                {% for day in all_days %}
+                    <td>
+                        {% for event in events %}
+                            {% if event.start.day == day %}
+                                {{ event.codeprojet }}
+                            {% endif %}
+                        {% endfor %}
+                    </td>
+                {% endfor %}
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+</main>
+
+<script>
+    document.getElementById('generate-pdf-btn').addEventListener('click', function() {
+        var isValidated = this.getAttribute('data-validated') === 'true';
+        if (isValidated) {
+            html2canvas(document.querySelector("main")).then(function(canvas) {
+                var imgData = canvas.toDataURL('image/png');
+                var pdf = new jspdf.jsPDF('landscape', 'pt', 'a4');
+                var imgWidth = 810;
+                var pageHeight = 610;
+                var imgHeight = canvas.height * imgWidth / canvas.width;
+                var heightLeft = imgHeight;
+                var position = 0;
+
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                pdf.save('liste_evenements.pdf');
+            }).catch(function(error) {
+                console.error('Erreur lors de la génération du PDF :', error);
+            });
+        } else {
+            alert("Le tableau doit être validé avant de pouvoir générer le PDF.");
+        }
+    });
+
+    document.getElementById('validate-btn').addEventListener('click', function() {
+        var validated = this.textContent.includes('Invalider');
+        fetch("{% url 'validate_table' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ id: {{ tableau.id }}, validated: !validated })
+        }).then(response => response.json())
+          .then(data => {
+              if (data.status === 'success') {
+                  var generatePdfBtn = document.getElementById('generate-pdf-btn');
+                  generatePdfBtn.setAttribute('data-validated', data.validated.toString());
+                  this.textContent = data.validated ? 'Invalider le tableau' : 'Valider le tableau';
+              } else {
+                  alert('Erreur lors de la validation');
+              }
+          }).catch(error => {
+              console.error('Erreur lors de la validation :', error);
+          });
+    });
+</script>
+
+</body>
+</html>

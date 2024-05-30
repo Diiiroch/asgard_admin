@@ -48,6 +48,7 @@ urlpatterns = [
     path('cra/validate_table/', cra_views.validate_table, name='validate_table'),
     path('cra/event-table/<int:mois>/<int:annee>/', cra_views.event_table, name='event_table'),
     path('cra/get_all_project_code/', cra_views.get_all_project_code, name='get_all_project_code'),
+    path('cra/tableau/<int:tableau_id>/', cra_views.detail_tableau, name='detail_tableau'),
 
     # URLs pour l'application conge
     path('update_event_conge/', conge_views.update_event_conge, name='update_event_conge'),
